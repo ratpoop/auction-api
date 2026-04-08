@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auction Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f3; color: #111; padding: 2rem; max-width: 600px; margin: 0 auto; }
+    h1 { font-size: 20px; font-weight: 500; margin-bottom: 1.5rem; }
+    .section { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+    .section h2 { font-size: 15px; font-weight: 500; margin-bottom: 1rem; }
+    .row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    label { font-size: 13px; color: #666; width: 140px; flex-shrink: 0; }
+    input { flex: 1; height: 34px; border: 1px solid #ddd; border-radius: 8px; padding: 0 10px; font-size: 14px; background: #fafafa; color: #111; }
+    input:focus { outline: none; border-color: #999; }
+    button { height: 34px; padding: 0 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; cursor: pointer; background: #fff; color: #111; margin-top: 8px; }
+    button:hover { background: #f5f5f3; }
+    .msg { margin-top: 10px; font-size: 13px; padding: 8px 12px; border-radius: 8px; display: none; }
+    .msg.ok { background: #eaf3de; color: #3b6d11; display: block; }
+    .msg.err { background: #fcebeb; color: #a32d2d; display: block; }
+    .auction-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin-top: 10px; }
+    .auction-card .title { font-size: 15px; font-weight: 500; }
+    .auction-card .meta { font-size: 13px; color: #666; margin-top: 4px; }
+    .bid-amount { font-size: 22px; font-weight: 500; margin-top: 6px; }
+    .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; margin-left: 8px; vertical-align: middle; }
+    .badge.active { background: #eaf3de; color: #3b6d11; }
+    .badge.ended { background: #fcebeb; color: #a32d2d; }
+  </style>
+</head>
+<body>
+
+  <h1>Auction dashboard</h1>
+
+  <div class="section">
+    <h2>Create auction</h2>
+    <div class="row"><label>Title</label><input id="c-title" placeholder="e.g. Rare trading card" /></div>
+    <div class="row"><label>Starting price ($)</label><input id="c-price" type="number" placeholder="100" /></div>
+    <div class="row"><label>Duration (minutes)</label><input id="c-dur" type="number" placeholder="60" /></div>
+    <button onclick="createAuction()">Create auction</button>
+    <div class="msg" id="c-msg"></div>
+  </div>
+
+  <div class="section">
+    <h2>Place a bid</h2>
+    <div class="row"><label>Auction ID</label><input id="b-id" type="number" placeholder="1" /></div>
+    <div class="row"><label>Your name</label><input id="b-name" placeholder="e.g. John" /></div>
+    <div class="row"><label>Bid amount ($)</label><input id="b-amount" type="number" placeholder="150" /></div>
+    <button onclick="placeBid()">Place bid</button>
+    <div class="msg" id="b-msg"></div>
+  </div>
+
+  <div class="section">
+    <h2>Check auction status</h2>
+    <div class="row"><label>Auction ID</label><input id="s-id" type="number" placeholder="1" /></div>
+    <button onclick="checkStatus()">Check status</button>
+    <div id="s-result"></div>
+  </div>
+
+  <script>
+    const BASE = "http://localhost:8000";
+
+    async function createAuction() {
+      const title = document.getElementById("c-title").value;
+      const price = document.getElementById("c-price").value;
+      const dur = document.getElementById("c-dur").value;
+      const msg = document.getElementById("c-msg");
+      try {
+        const res = await fetch(`${BASE}/auctions?title=${encodeURIComponent(title)}&starting_price=${price}&duration_minutes=${dur}`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+          msg.className = "msg ok";
+          msg.textContent = `Auction created! ID: ${data.id} — "${data.title}" starting at $${data.starting_price}`;
+        } else {
+          msg.className = "msg err";
+          msg.textContent = data.detail || "Something went wrong";
+        }
+      } catch(e) {
+        msg.className = "msg err";
+        msg.textContent = "Could not reach API — is uvicorn running?";
+      }
+    }
+
+    async function placeBid() {
+      const id = document.getElementById("b-id").value;
+      const name = document.getElementById("b-name").value;
+      const amount = document.getElementById("b-amount").value;
+      const msg = document.getElementById("b-msg");
+      try {
+        const res = await fetch(`${BASE}/auctions/${id}/bids?bidder=${encodeURIComponent(name)}&amount=${amount}`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+          msg.className = "msg ok";
+          msg.textContent = `Bid placed! ${name} bid $${amount} on auction #${id}`;
+        } else {
+          msg.className = "msg err";
+          msg.textContent = data.detail || "Something went wrong";
+        }
+      } catch(e) {
+        msg.className = "msg err";
+        msg.textContent = "Could not reach API — is uvicorn running?";
+      }
+    }
+
+    async function checkStatus() {
+      const id = document.getElementById("s-id").value;
+      const result = document.getElementById("s-result");
+      try {
+        const res = await fetch(`${BASE}/auctions/${id}`);
+        const data = await res.json();
+        if (res.ok) {
+          const badge = data.active ? '<span class="badge active">Active</span>' : '<span class="badge ended">Ended</span>';
+          const ends = new Date(data.ends_at).toLocaleTimeString();
+          const topBid = data.current_highest_bid ? `$${data.current_highest_bid} by ${data.leading_bidder}` : "No bids yet";
+          result.innerHTML = `
+            <div class="auction-card">
+              <div class="title">${data.title} ${badge}</div>
+              <div class="meta">Ends at ${ends}</div>
+              <div class="bid-amount">${topBid}</div>
+              <div class="meta" style="margin-top:4px;">Current highest bid</div>
+            </div>`;
+        } else {
+          result.innerHTML = `<div class="msg err" style="display:block">${data.detail || "Auction not found"}</div>`;
+        }
+      } catch(e) {
+        result.innerHTML = `<div class="msg err" style="display:block">Could not reach API — is uvicorn running?</div>`;
+      }
+    }
+  </script>
+
+</body>
+</html>
