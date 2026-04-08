@@ -2,7 +2,7 @@
 
 A simple REST API for a live auction system built with FastAPI and SQLite.
 
-## Setup
+## If there is no live link setup steps are as follows:
 
 1. Clone the repo
    git clone https://github.com/ratpoop/auction-api.git
